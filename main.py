@@ -4,6 +4,7 @@ from auth_utils import login_earthdata
 from surface_analysis import classify_surface
 from spectral_processor import extract_spectral_data
 from utils import get_previous_dates
+import argparse
 import sys
 import os
 import numpy as np
@@ -12,20 +13,47 @@ DATA_DIR = r"C:\Test"
 OUTPUT_JSON = os.path.join(DATA_DIR, "grid_output.json")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--date', required=True)
+    parser.add_argument('--north', type=float, required=True)
+    parser.add_argument('--south', type=float, required=True)
+    parser.add_argument('--east', type=float, required=True)
+    parser.add_argument('--west', type=float, required=True)
+    parser.add_argument('--grid-size', type=int, default=50)
+    parser.add_argument('--force-download', type=bool, default=True)
+    parser.add_argument('--output-json', required=True)
+    args = parser.parse_args()
+
     # Вход в EarthData
     if not login_earthdata(interactive_fallback=True):
         print("Не удалось войти в EarthData. Выход.")
         sys.exit(1)
 
     user_bbox = {
-        "north": 40.0,
-        "south": 27.0,
-        "east": -75.0,
-        "west": -95.8
+        "north": args.north,
+        "south": args.south,
+        "east": args.east,
+        "west": args.west
     }
-    main_date = "2026-06-12"
-    grid_size = 50
-    force_download = True  # принудительное скачивание для основной и предыдущих дат
+    main_date = args.date
+    grid_size = args.grid_size
+    force_download = args.force_download
+
+    # Переопределяем глобальные пути, чтобы все модули писали в одну папку
+    # Для этого создадим папку для данных рядом с выходным JSON (или можно использовать общую)
+    data_dir = os.path.dirname(args.output_json)
+    os.makedirs(data_dir, exist_ok=True)
+
+    # Переопределяем глобальные переменные в модулях
+    import download_manager
+    import hdf_processor
+    import surface_analysis
+
+    download_manager.DATA_DIR = data_dir
+    hdf_processor.DATA_DIR = data_dir
+    hdf_processor.OUTPUT_JSON = args.output_json
+    surface_analysis.DATA_DIR = data_dir
+    surface_analysis.OUTPUT_JSON = args.output_json
 
     # 1. Скачиваем/находим данные для основной даты
     print(f"\nОбработка основной даты: {main_date}")
